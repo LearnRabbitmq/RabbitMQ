@@ -1,0 +1,102 @@
+队列和交换机声明:
+无论是发送端还是接收端，只使用到了connection和channel对象，并没有使用任何queue或者exchange对象，
+而仅仅是使用了他们的字符串名字。
+《兔子和兔子窝》的例子中，在接收端做好一切（queue和exchange声明、绑定），
+可能是因为防止消息拥塞在RabbitMQ服务器上得不到处理。
+而其他在发送端声明的例子，是因为其先给出先调用，所以需要先声明。
+实际上在哪儿声明并没有任何要求，唯一要求是在使用前。甚至可以使用单独的程序来声明、创建、绑定队列和交换机。
+
+默认交换机
+使用rabbitmqctl list_exchanges，会发现一个无名（空字符串）的exchange，类型为direct。
+在RabbitMQ中，它是默认创建好的交换机（default exchange）。
+
+本质上所有的消息发送都要送往exchange（可以没有队列，但不能没有交换机，没有队列时消息直接被丢弃）。
+RabbitMQ提供了一种直接向Queue发送消息的快捷方法：
+直接使用未命名的exchange，不用绑定routing_key，直接用它指定队列名。
+channel.basic_publish(exchange='',routing_key=queue_name, body=my_message)  
+
+消息确认:
+在接收端的callback最后：
+channel.basic_ack(delivery_tag=method.delivery_tag)
+除了callback函数，还要在之前设置接收消息时指定no_ack（默认False）：
+channel.basic_consume(callback, queue=’hello’, no_ack=False)  
+只有在Consumer断开连接时，RabbitMQ才会重新发送未经确认的消息。
+超时的情况并未考虑：无论Consumer需要处理多长时间，RabbitMQ都不会重发消息。
+
+公平调度:
+消息接收客户端（一般指Consumer）也采用了异步过程：消息接收和消息处理。
+所以不是接收一条处理一条，接收端会一次性接收尽可能多的消息，然后由异步处理过程慢慢处理。
+RabbitMQ默认轮流向Consumer发送消息（round-robin方式），但每条消息处理的事情并不总是相等，
+这有可能会导致Consumer处理任务不均衡，有些很快完成，有些要花更多的时间。
+解决的方法就是设置异步消息接收数量，例如只接收1条。不过如果设置的太少，会增加进程/线程切换代价。
+qos必须和消息确认配合使用。
+接收端代码：
+channel.basic_consume(callback, queue=’hello’, no_ack=False)  
+在队列声明queue_declare和开始接受消息basic_consume之间调用。
+
+
+临时队列:
+创建队列时（queue_declare），可以使用queue参数指定队列名称，也可以不指定：
+result = queue_declare(exclusive=True)
+临时队列一般由接收端来产生，因为接收端直接从队列获取消息。
+一般我们还将队列设置为专用：exclusive=True。这个参数的另一个效果是接收端断开时，队列会被自动删除。
+可以认为queue_declare返回的是队列对象，但我们在程序中不会使用到除connection和channel之外的其他对象。
+所以，一般接下来我们都是用result.method.queue来获取队列名称，在以后的过程中使用。
+
+远程结果返回:
+在RabbitMQ介绍到RPC时，有时候可以将RabbitMQ（消息传递系统）和一组Consumer看成一个整体服务器（Server），
+而Producer可以看成是客户端（Client）。
+Consumer在处理完消息之后，再发送一条消息。发送消息需要指定exchange和routing_key：
+channel.basic_publish(exchange=’’,routing_key=properties.reply_to, body=response)  
+在这个例子中，使用的是无名交换机，routing_key指定queue，名字来自于回调函数的properties参数。
+接收消息返回的队列是由发送端声明的。发送端在使用basic_publish发送消息时，
+除了指定exchange, routing_key, body外，还可以指定properties（可以认为是自定义的内容）：
+channel.basic_publish(exchange=’’,routing_key=queue_name,
+properties=pika.BasicProperties(reply_to=result.method.queue)),body=my_message)
+发送端也是接收端，需要获得消息反馈：  
+self.channel.basic_consume(self.on_response,no_ack=True, queue=self.callback_queue)
+由于发送端在设置接收消息反馈时，还要继续其他的过程，不能执行channel.start_consuming等在这里。
+设计上，我们让发送端接收到反馈时就退出，所以即使完成其他所有过程，也不能无限制等待。
+发送端接收到反馈时，消息保存在self.response中，所以我们等待它被赋值就可以了。
+最简单的等待方式就是循环sleep，不过这里有其他机制。
+self.connection.process_data_events()是一个等待消息的阻塞过程，
+连接的任何消息都可以使它脱离阻塞状态（有点像Ajax的事件等待机制）
+while self.response is None :
+    self.connection.process_data_events()
+# response is not None here
+
+
+消息的properties
+
+AMQP定义了14个消息属性，可以把properties看成是伴随着消息的数据结构，和routing_key一样，
+routing_key会送到exchange，而properties会和消息一起送给接收端。
+•delivery_mode：用于做消息持久化（delivery_mode=2）；
+•content_type：消息内容格式；
+•reply_to：一般用于RPC过程，消息处理返回结果队列；
+•correlation_id：用于关联RPC的请求与应答；
+correlation_id的使用很简单，接收端反馈消息时，要（在发聩消息的properties里）带上correlation_id，
+发送端接收到反馈便可以用这个对应结果（参考3的第7篇笔记，center-computer的例子是对应到发送的线程）。
+correlation_id最初还是来自于发送端，发送消息时附带在它的properties中，
+同时附带的还有接收反馈消息的队列名称（reply_to）。
+
+如果还有更复杂的情况，复杂到使用properties也解决不了，那么就使用更复杂的消息吧，
+例如json格式的消息（properties.content_type=application/json），
+类似correlation_id和reply_to的信息，也可以放在消息内容里。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

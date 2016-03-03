@@ -1,0 +1,47 @@
+
+
+一、功能测试
+这边先打开两个终端，都运行worker.py，处于监听状态，这边就相当于两个工作者。
+打开第三个终端，运行task.py
+
+在实例程序中，用task.py来模拟任务分配者， worker.py来模拟工作者。
+
+二、实现的功能：
+task端：
+功能：
+2、消息持久化存储
+虽然有了worker端的消息反馈机制，但是如果rabbitmq自身挂掉的话，那么任务还是会丢失。
+所以需要将任务持久化存储起来。声明持久化存储：
+channel.queue_declare(queue='hello', durable=True)
+在发送任务的时候，用delivery_mode=2来标记任务为持久化存储：
+channel.basic_publish(exchange='',
+                      routing_key="task_queue",
+                      body=message,
+                      properties=pika.BasicProperties(
+                         delivery_mode = 2, # make message persistent
+                      ))
+                      
+
+
+
+worker端：
+实现功能：
+
+1、消息确认（Message acknowledgment）
+消息确认就是当工作者完成任务后，会反馈给rabbitmq。
+修改worker.py中的回调函数：
+def callback(ch, method, properties, body):
+    print " [x] Received %r" % (body,)
+    time.sleep(5)
+    print " [x] Done"
+    ch.basic_ack(delivery_tag = method.delivery_tag)
+    
+去除no_ack=True参数或者设置为False也可以
+channel.basic_consume(callback, queue='hello', no_ack=False)
+
+3、公平调度（Fair dispatch）
+上面实例中，虽然每个工作者是依次分配到任务，但是每个任务不一定一样。
+可能有的任务比较重，执行时间比较久；有的任务比较轻，执行时间比较短。
+如果能公平调度就最好了，使用basic_qos设置prefetch_count=1，
+使得rabbitmq不会在同一时间给工作者分配多个任务，即只有工作者完成任务之后，才会再次接收到任务。
+channel.basic_qos(prefetch_count=1)

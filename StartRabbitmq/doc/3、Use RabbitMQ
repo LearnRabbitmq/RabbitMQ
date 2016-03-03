@@ -1,0 +1,111 @@
+
+
+
+
+关键字：创建一个vritual_host 并且给我们的用户赋予权限访问他
+
+
+virtual_host:
+python写的rabbitmq扩展的时候应该注意到我们的Connection类的构造函数(Connection是连接rabbitmq的一个类)
+
+virtual host只是起到一个命名空间的作用，所以可以多个user共同使用一个virtual host，
+文章开头写的vritual_host = '/'，这个是系统默认的，就是说当我们创建一个到rabbitmq的connection时候，
+它的命名空间是'/'，需要注意的是不同的命名空间之间的资源是不能访问的，比如 exchang,queue ,bingding等
+
+class ConnectionParameters(Parameters):
+    """Connection parameters object that is passed into the connection adapter
+    upon construction.
+    :param str host: Hostname or IP Address to connect to
+    :param int port: TCP port to connect to
+    :param str virtual_host: RabbitMQ virtual host to use
+    :param pika.credentials.Credentials credentials: auth credentials
+    :param int channel_max: Maximum number of channels to allow
+    :param int frame_max: The maximum byte size for an AMQP frame
+    :param int heartbeat_interval: How often to send heartbeats
+    :param bool ssl: Enable SSL
+    :param dict ssl_options: Arguments passed to ssl.wrap_socket as
+    :param int connection_attempts: Maximum number of retry attempts
+    :param int|float retry_delay: Time to wait in seconds, before the next
+    :param int|float socket_timeout: Use for high latency networks
+    :param str locale: Set the locale value
+    :param bool backpressure_detection: Toggle backpressure detection
+    """
+    def __init__(self,
+                 host=None,
+                 port=None,
+                 virtual_host=None,  构造函数为None的话，默认就是/
+                 credentials=None,
+                 channel_max=None,
+                 frame_max=None,
+                 heartbeat_interval=None,
+                 ssl=None,
+                 ssl_options=None,
+                 connection_attempts=None,
+                 retry_delay=None,
+                 socket_timeout=None,
+                 locale=None,
+                 backpressure_detection=None):
+        """Create a new ConnectionParameters instance.
+        :param str host: Hostname or IP Address to connect to
+        :param int port: TCP port to connect to
+        :param str virtual_host: RabbitMQ virtual host to use
+        :param pika.credentials.Credentials credentials: auth credentials
+        :param int channel_max: Maximum number of channels to allow
+        :param int frame_max: The maximum byte size for an AMQP frame
+        :param int heartbeat_interval: How often to send heartbeats.
+                                  Min between this value and server's proposal
+                                  will be used. Use 0 to deactivate heartbeats
+                                  and None to accept server's proposal.
+        :param bool ssl: Enable SSL
+        :param dict ssl_options: Arguments passed to ssl.wrap_socket
+        :param int connection_attempts: Maximum number of retry attempts
+        :param int|float retry_delay: Time to wait in seconds, before the next
+        :param int|float socket_timeout: Use for high latency networks
+        :param str locale: Set the locale value
+        :param bool backpressure_detection: Toggle backpressure detection
+
+
+2、创建 virtual_host 并赋予相应权限：
+vitrual host 只是一个命名空间，那么我们就可以自己创建一个喽，怎么去干呢？
+这里我们需要用到工具 :rabbitmqctl，安装rabbitMQ的时候已经安装好了。
+1）首先创建用户
+删除guest用户：rabbitmqctl delete_user  guest
+添加新用户：rabbitmqctl add_user admin 123456
+设置新用户为管理员权限：rabbitmqctl set_user_tags admin administrator
+重启rabbitmq服务：rabbitmq-server start
+
+rabbitmqctl list_users 看看有多少个用户了；我们只有一个admin用户
+C:\Users\YJ>rabbitmqctl list_users
+Listing users ...
+admin   [administrator]
+
+通过 rabbitmqctl add_vhosts命令新建一个virtual host :   rabbitmqctl add_vhost test_host
+C:\Users\YJ>rabbitmqctl add_vhost test_host
+Creating vhost "test_host" ...
+
+C:\Users\YJ>rabbitmqctl list_vhosts  #列出所有的vhost
+Listing vhosts ...
+/
+test_host
+
+C:\Users\YJ>
+
+但是到这里是不够的，我们只是声明了一个vhost，我们还要给它分配访问权限。
+     rabbitmqctl set_permissions -p test_host  admin "admin-*" ".*" ".*"，如此用户名为admin的用户就可以访问vitrual host为test_host的资源了，并且具备读写的权限。
+
+C:\Users\YJ>rabbitmqctl set_permissions -p / admin ".*" ".*" ".*"
+Setting permissions for user "admin" in vhost "/" ...
+
+
+
+
+
+
+
+
+
+
+
+
+
+

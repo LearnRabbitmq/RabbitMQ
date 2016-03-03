@@ -1,0 +1,30 @@
+系统环境：
+
+1、ubuntu 12.04下可以直接通过apt-get安装
+    sudo apt-get install rabbitmq-server
+2、CentOS6.5安装
+yum install erlang -y
+2、windwos 7 环境安装
+1）下载 rabbitMQ ：http://www.rabbitmq.com/download.html，安装rabbitmq需要erlang，下载erlang：http://www.erlang.org/download.html
+2）安装RABBITMQ
+
+rabbitMQ安装，查看安装文档：http://www.rabbitmq.com/install-windows.html
+
+3）安装ERLANG，下载完成ERLANG后，直接打开文件下一步就可以安装完成了，安装完成ERLANG后再回过来安装RABBITMQ。
+
+添加erlang的bin目录和rabbitmq的sbin目录到本机的PATH环境变量中
+
+4）启动RABBITMQ
+
+rabbitmq-server start
+
+如果有错误，就先stop，然后在star   ；rabbitmq-server stop;    rabbitmq-server start
+
+cmd进到sbin目录，键入rabbitmq-plugins enable rabbitmq_management启用监控管理，然后重启Rabbitmq服务器。打开网址http://192.168.10.108:15672
+
+3、管理rabbit
+删除guest用户：rabbitmqctl delete_user  guest
+添加新用户：rabbitmqctl add_user admin 123456
+设置新用户为管理员权限：rabbitmqctl set_user_tags admin administrator
+重启rabbitmq服务：rabbitmq-server start
+

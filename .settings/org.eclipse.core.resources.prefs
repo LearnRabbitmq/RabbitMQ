@@ -1,0 +1,16 @@
+eclipse.preferences.version=1
+encoding//FifthRabbitMQ/recive.py=utf-8
+encoding//FifthRabbitMQ/send.py=utf-8
+encoding//FirstRabbitMQ/recive.py=utf-8
+encoding//FirstRabbitMQ/send.py=utf-8
+encoding//FourthRabbitMQ/recive.py=utf-8
+encoding//FourthRabbitMQ/send.py=utf-8
+encoding//SecondRabbitMQ/task.py=utf-8
+encoding//SecondRabbitMQ/worker.py=utf-8
+encoding//SeventhRabbitMQ/center.py=utf-8
+encoding//SeventhRabbitMQ/compute.py=utf-8
+encoding//SixthRabbitMQ/center.py=utf-8
+encoding//SixthRabbitMQ/compute.py=utf-8
+encoding//ThirdRabbitMQ/recive.py=utf-8
+encoding//ThirdRabbitMQ/send.py=utf-8
+encoding//scripts/filesize.py=utf-8
